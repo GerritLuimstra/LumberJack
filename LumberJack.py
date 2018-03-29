@@ -1,19 +1,48 @@
 # Import the required libraries
 import numpy as np
 import cv2
+import math
 
 class LumberJack:
 
     ref_image = np.array([])
     image = np.array([])
+    blocks = 50
+    threshold = 40
 
     def __init__(self, ref_height = 80, ref_width = 40, log_length = 300):
         self.ref_height = ref_height
         self.ref_width = ref_width
         self.log_length = log_length
 
+    """ Tries to remove isolated pixels """
     def _remove_isolated_pixels(self, image):
+
+        height, width = image.shape
+        height_per_block = math.floor(height / self.blocks**(1/2))
+        width_per_block = math.floor(width / self.blocks**(1/2))
+
+        base_h = 0
+        base_w = 0
+        for i in range(0, self.blocks):
+            if base_w < width:
+                block = image[base_h:(base_h + height_per_block), base_w:width_per_block*(i+1)]
+                base_w += width_per_block
+            else:
+                base_w = 0
+                base_h += height_per_block
+                block = image[base_h:(base_h + height_per_block), base_w:width_per_block]
+                base_w += width_per_block
+
+            white_px = self._calc_white(block)
+            max_amount = block.size
+            percentage_white_px = (white_px / max_amount) * 100
+            if percentage_white_px < self.threshold:
+                image[base_h:(base_h + height_per_block), base_w:width_per_block*(i+1)] = 0
+            cv2.imshow('image'+ str(i), image)
+
         return image
+        
 
     """ Extracts the reference points from the image """
     def _extract_ref(self):
@@ -23,7 +52,7 @@ class LumberJack:
         upper_bound = np.array([255, 255, 255])
 
         ref_image = cv2.inRange(self.hsv, lower_bound, upper_bound)
-        ref_image = self._remove_isolated_pixels(ref_image)
+        #ref_image = self._remove_isolated_pixels(ref_image)
         self.ref_image = ref_image
         
 
@@ -61,6 +90,9 @@ class LumberJack:
     
         return ref_act_height * ref_act_width
 
+    def _calc_white(self, block):
+        return np.sum(block)/ 255
+
     def estimate(self, image):
         self.image = image
         
@@ -86,7 +118,7 @@ class LumberJack:
         return m_cubed
 
 
-image = cv2.imread('test/anothertest.png')
+image = cv2.imread('test/test3.png')
 lumberjack = LumberJack()
 estimate = lumberjack.estimate(image)
 print(estimate)
